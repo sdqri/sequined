@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Node.Type}} | {{(.Node.Faker).City}}</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12">
+                <h1 class="mt-4 mb-4">{{.Node.Type}} | {{(.Node.Faker).City}}</h1>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card mb-4">
+                    <img class="card-img-top" src="https://cdn.pixabay.com/photo/2017/02/20/18/03/cat-2083492_640.jpg" alt="Image">
+                    <div class="card-body">
+                        <h2 class="card-title">{{(.Node.Faker).City}}</h2>
+                        <p class="card-text text-muted">{{(.Node.Faker).Sentence 10}}</p>
+                            {{$paragraph:=((.Node.Faker).Paragraph 10 5 10 "|")}}
+                            {{$paragraphs:=Split ($paragraph) ("|")}}
+                            {{range $paragraphs}}
+                                <p class="card-text">
+                                    {{.}}
+                                </p>
+                            {{end}}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Latest News</h5>
+                        <ul class="list-group list-group-flush">
+                            {{range .Node.Links}}
+                                <li class="list-group-item">
+                                    <a href="{{.GetPath}}">{{(.Faker).City}}</a>
+                                </li>
+                            {{end}}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
+

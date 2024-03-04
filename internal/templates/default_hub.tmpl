@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Node.Type}} | {{(.Node.Faker).City}}</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12">
+                <h1 class="mt-4 mb-4">{{.Node.Type}} | {{(.Node.Faker).City}}</h1>
+            </div>
+        </div>
+        <div class="row">
+            {{range .Node.Links}}
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <img class="card-img-top" src="https://cdn.pixabay.com/photo/2017/02/20/18/03/cat-2083492_640.jpg" alt="Image">
+                    <div class="card-body">
+                        <h2 class="card-title">{{(.Faker).City}}</h2>
+                        <p class="card-text">{{(.Faker).Sentence 10}}</p>
+                        <a href="{{.GetPath}}" class="btn btn-primary">Read More</a>
+                    </div>
+                </div>
+            </div>
+            {{end}}
+       </div>
+    </div>
+    <!-- Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
+
