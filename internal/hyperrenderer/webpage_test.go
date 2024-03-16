@@ -298,7 +298,11 @@ func TestDrawGolden(t *testing.T) {
 	actual, err := os.ReadFile(filename)
 	require.NoError(t, err, "Error reading golden DOT file")
 
-	goldenPath := filepath.Join("test-fixtures", "draw.golden")
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Error(err)
+	}
+	goldenPath := filepath.Join(wd, "internal/hyperrenderer/test-fixtures", "draw.golden")
 	if *update {
 		os.WriteFile(goldenPath, actual, 0644)
 	}
