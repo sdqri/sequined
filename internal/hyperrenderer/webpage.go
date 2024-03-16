@@ -7,6 +7,8 @@ import (
 	"math/rand"
 	"net/url"
 	"os"
+	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/brianvoe/gofakeit/v7"
@@ -48,15 +50,20 @@ func NewWebpage(
 
 	fnMaps := template.FuncMap{"Split": strings.Split}
 
+	wd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+
 	defaultAuthorityTmpl, err := template.New("default_authority.tmpl").
 		Funcs(fnMaps).
-		ParseFiles("../templates/default_authority.tmpl")
+		ParseFiles(filepath.Join(wd, "internal/templates/default_authority.tmpl"))
 	if err != nil {
 		panic(err)
 	}
 	defaultHubTmpl, err := template.New("default_hub.tmpl").
 		Funcs(fnMaps).
-		ParseFiles("../templates/default_hub.tmpl")
+		ParseFiles(path.Join(wd, "internal/templates/default_authority.tmpl"))
 	if err != nil {
 		panic(err)
 	}
@@ -162,7 +169,7 @@ func (wp *Webpage) Draw(filename string, format graphviz.Format) error {
 	}
 
 	nodes := make(map[string]*cgraph.Node)
-	visited := Traverse(wp, func(hr HyperRenderer) {})
+	visited := Traverse(wp, NoOpVisit)
 
 	for renderer := range visited {
 		webpage, ok := renderer.(*Webpage)
