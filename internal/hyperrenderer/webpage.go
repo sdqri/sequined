@@ -23,6 +23,8 @@ const (
 	WebpageTypeHub       = "hub"
 )
 
+type PathGeneratorfunc func(parent *Webpage) string
+
 type Webpage struct {
 	ID     uint64
 	Path   string
@@ -33,9 +35,8 @@ type Webpage struct {
 	PathGenerator PathGeneratorfunc
 	AuthorityTmpl *template.Template
 	HubTmpl       *template.Template
+	CustomTmpl    *template.Template
 }
-
-type PathGeneratorfunc func(parent *Webpage) string
 
 type WebpageOption func(*Webpage)
 
@@ -49,13 +50,13 @@ func NewWebpage(
 
 	defaultAuthorityTmpl, err := template.New("default_authority.tmpl").
 		Funcs(fnMaps).
-		ParseFiles("internal/templates/default_authority.tmpl")
+		ParseFiles("../templates/default_authority.tmpl")
 	if err != nil {
 		panic(err)
 	}
 	defaultHubTmpl, err := template.New("default_hub.tmpl").
 		Funcs(fnMaps).
-		ParseFiles("internal/templates/default_hub.tmpl")
+		ParseFiles("../templates/default_hub.tmpl")
 	if err != nil {
 		panic(err)
 	}
@@ -65,7 +66,7 @@ func NewWebpage(
 		Links: make([]*Webpage, 0),
 		Type:  webpageType,
 
-		PathGenerator: defaultPageGenerator,
+		PathGenerator: defaultPathGenerator,
 		AuthorityTmpl: defaultAuthorityTmpl,
 		HubTmpl:       defaultHubTmpl,
 	}
@@ -76,13 +77,27 @@ func NewWebpage(
 	return &webpage
 }
 
-func (wp *Webpage) AddWebPage(webpageType WebpageType) *Webpage {
+// Clone creates a new Webpage instance based on the current one with a specified type, a unique ID, and no links.
+func (wp *Webpage) Clone(webpageType WebpageType) *Webpage {
 	webpage := *wp
+	// assign a unique id
 	id := rand.Uint64()
 	webpage.ID = id
+
+	// initializing links & type
 	webpage.Links = make([]*Webpage, 0)
 	webpage.Type = webpageType
 	return &webpage
+}
+
+func (wp *Webpage) AddChild(webpageType WebpageType, opts ...WebpageOption) *Webpage {
+	newPage := wp.Clone(webpageType)
+	wp.AddLink(newPage)
+
+	for _, opt := range opts {
+		opt(newPage)
+	}
+	return newPage
 }
 
 func (wp *Webpage) GetID() string {
@@ -90,7 +105,10 @@ func (wp *Webpage) GetID() string {
 }
 
 func (wp *Webpage) GetPath() string {
-	return wp.PathGenerator(wp)
+	if wp.PathGenerator != nil {
+		return wp.PathGenerator(wp)
+	}
+	return wp.Path
 }
 
 func (wp *Webpage) Render(writer io.Writer) error {
@@ -98,6 +116,9 @@ func (wp *Webpage) Render(writer io.Writer) error {
 		Node *Webpage
 	}{
 		Node: wp,
+	}
+	if wp.CustomTmpl != nil {
+		return wp.CustomTmpl.Execute(writer, data)
 	}
 	if wp.Type == WebpageTypeAuthority {
 		return wp.AuthorityTmpl.Execute(writer, data)
@@ -122,32 +143,27 @@ func (wp *Webpage) Faker() *gofakeit.Faker {
 	return gofakeit.New(wp.ID)
 }
 
-func defaultPageGenerator(webpage *Webpage) string {
-	if webpage.Parent == nil {
-		return "/"
+func (wp *Webpage) CountLinksByType(t WebpageType) int {
+	i := 0
+	for _, link := range wp.Links {
+		if link.Type == t {
+			i++
+		}
 	}
-	result, err := url.JoinPath(webpage.Parent.GetPath(), fmt.Sprintf("%d", webpage.ID))
-	if err != nil {
-		panic(err)
-	}
-	return result
+	return i
 }
 
 func (wp *Webpage) Draw(filename string, format graphviz.Format) error {
-	// Create a new graph
 	g := graphviz.New()
 
-	// Create a new directed graph
 	graph, err := g.Graph()
 	if err != nil {
 		return err
 	}
 
-	// Create a map to store nodes
 	nodes := make(map[string]*cgraph.Node)
 	visited := Traverse(wp, func(hr HyperRenderer) {})
 
-	// Create nodes
 	for renderer := range visited {
 		webpage, ok := renderer.(*Webpage)
 		if !ok {
@@ -177,7 +193,6 @@ func (wp *Webpage) Draw(filename string, format graphviz.Format) error {
 		nodes[renderer.GetID()] = node
 	}
 
-	// Add edges
 	for node := range visited {
 		parentNode, ok := nodes[node.GetID()]
 		if !ok {
@@ -196,7 +211,6 @@ func (wp *Webpage) Draw(filename string, format graphviz.Format) error {
 		}
 	}
 
-	// Render the graph to DOT format
 	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	defer file.Close()
 	if err != nil {
@@ -210,6 +224,32 @@ func (wp *Webpage) Draw(filename string, format graphviz.Format) error {
 	return nil
 }
 
+func defaultPathGenerator(webpage *Webpage) string {
+	if webpage.Parent == nil {
+		return "/"
+	}
+	result, err := url.JoinPath(webpage.Parent.GetPath(), fmt.Sprintf("%d", webpage.ID))
+	if err != nil {
+		panic(err)
+	}
+	return result
+}
+
+func CityPathGenerator(webpage *Webpage) string {
+	if webpage.Parent == nil {
+		return "/"
+	}
+
+	result, err := url.JoinPath(
+		webpage.Parent.GetPath(),
+		strings.ReplaceAll(strings.ToLower(webpage.Faker().City()), " ", "-"),
+	)
+	if err != nil {
+		panic(err)
+	}
+	return result
+}
+
 func WithAuthorityTemplate(tmpl *template.Template) WebpageOption {
 	return func(w *Webpage) {
 		w.AuthorityTmpl = tmpl
@@ -219,5 +259,17 @@ func WithAuthorityTemplate(tmpl *template.Template) WebpageOption {
 func WithHubTemplate(tmpl *template.Template) WebpageOption {
 	return func(w *Webpage) {
 		w.HubTmpl = tmpl
+	}
+}
+
+func WithCustomTemplate(tmpl *template.Template) WebpageOption {
+	return func(w *Webpage) {
+		w.CustomTmpl = tmpl
+	}
+}
+
+func WithPathGenerator(f func(*Webpage) string) WebpageOption {
+	return func(w *Webpage) {
+		w.PathGenerator = f
 	}
 }

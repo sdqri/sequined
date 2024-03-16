@@ -1,0 +1,11 @@
+digraph "" {
+	graph [bb="0,0,170.56,82.59"];
+	node [label="\N"];
+	1	 [height=1.1471,
+		label="Title: Birmingham
+Type: 
+Path: ",
+		pos="85.28,41.295",
+		style=filled,
+		width=2.3689];
+}

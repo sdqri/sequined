@@ -19,7 +19,7 @@ func GetPaths(node HyperRenderer) []string {
 	return paths
 }
 
-type Visited map[HyperRenderer]bool
+type Visited map[HyperRenderer]struct{}
 
 func Traverse(root HyperRenderer, f func(HyperRenderer)) Visited {
 	visited := make(Visited)
@@ -32,7 +32,7 @@ func traverse(root HyperRenderer, visited Visited, f func(HyperRenderer)) {
 		return
 	}
 
-	visited[root] = true
+	visited[root] = struct{}{}
 	f(root)
 
 	links := root.GetLinks()
@@ -50,7 +50,17 @@ func CreateMap(root HyperRenderer) map[string]HyperRenderer {
 	return nodeMap
 }
 
-//
+func FindHyperRendererByPath(root HyperRenderer, path string) HyperRenderer {
+	target := root
+	Traverse(root, func(hr HyperRenderer) {
+		if path == hr.GetPath() {
+			target = hr
+			return
+		}
+	})
+	return target
+}
+
 // func findHyperRendererByID(root HyperRenderer, targetID string, visited Visited) HyperRenderer {
 // 	if root.GetID() == targetID {
 // 		return root
