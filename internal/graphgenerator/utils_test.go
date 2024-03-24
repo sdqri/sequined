@@ -11,6 +11,8 @@ func TestSelectByProbability(t *testing.T) {
 	testCases := []struct {
 		name          string
 		probabilities []float64
+		expectedIndex int
+		expectedErr   error
 	}{
 		{
 			name:          "Empty Probabilities",
@@ -35,7 +37,9 @@ func TestSelectByProbability(t *testing.T) {
 			selectedIdx, err := graphgenerator.SelectByProbability(test.probabilities)
 			if test.probabilities == nil {
 				assert.ErrorIs(t, err, graphgenerator.ErrNoProbabilities, "Unexpected error for empty probabilities")
-			} else if len(test.probabilities) == 0 || sum(test.probabilities) == 0 {
+			} else if len(test.probabilities) == 0 {
+				assert.ErrorIs(t, err, graphgenerator.ErrNoProbabilities, "Unexpected error for no probabilities")
+			} else if sum(test.probabilities) == 0 {
 				assert.ErrorIs(t, err, graphgenerator.ErrZeroSumProbabilities, "Unexpected error for zero sum probabilities")
 			} else {
 				assert.NoError(t, err, "Unexpected error")
