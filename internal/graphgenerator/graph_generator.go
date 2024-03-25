@@ -17,6 +17,7 @@ type SelectorFunc func(probabilities []float64) (int, error)
 type GraphGenerator struct {
 	Root                   *hr.Webpage
 	PreferentialAttachment float64
+	Debug                  bool
 	SelectorFunc
 	mu sync.Mutex
 }
@@ -235,12 +236,18 @@ func (gg *GraphGenerator) StartGraphEvolution(
 	// Creates hub pages Asynchronously
 	retreatChan := make(chan struct{}, 0)
 	go func() {
-		ticker := time.NewTicker(hubCreationInterval)
-		defer ticker.Stop()
+		var tickerChan <-chan time.Time
+		if gg.Debug {
+			tickerChan = MockTicker(maxHubCount)
+		} else {
+			ticker := time.NewTicker(hubCreationInterval)
+			tickerChan = ticker.C
+			defer ticker.Stop()
+		}
 	outerLoop:
 		for {
 			select {
-			case <-ticker.C:
+			case <-tickerChan:
 				if hubCount < maxHubCount {
 					webpage, err := gg.CreateHubPage()
 					if err != nil {
@@ -266,12 +273,18 @@ func (gg *GraphGenerator) StartGraphEvolution(
 	}()
 
 	go func() {
-		ticker := time.NewTicker(authCreationInterval)
-		defer ticker.Stop()
+		var tickerChan <-chan time.Time
+		if gg.Debug {
+			tickerChan = MockTicker(maxAuthCount)
+		} else {
+			ticker := time.NewTicker(authCreationInterval)
+			tickerChan = ticker.C
+			defer ticker.Stop()
+		}
 	outerLoop:
 		for {
 			select {
-			case <-ticker.C:
+			case <-tickerChan:
 				if authCount < maxAuthCount {
 					webpage, err := gg.CreateAuthorityPage()
 					if err != nil {
@@ -322,4 +335,16 @@ func (gg *GraphGenerator) StartGraphEvolution(
 	}()
 
 	return updateChan, errChan, nil
+}
+
+func MockTicker(n int) <-chan time.Time {
+	t := time.Now()
+	c := make(chan time.Time, n)
+	go func() {
+		for i := 0; i < n; i++ {
+			c <- t
+		}
+		close(c)
+	}()
+	return c
 }

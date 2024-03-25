@@ -267,6 +267,7 @@ func TestStartGraphEvolution(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			root := tc.rootGenerator()
 			gg := graphgenerator.New(root, tc.preferentialAttachment)
+			gg.Debug = true
 			updateChan, errChan, err := gg.StartGraphEvolution(
 				tc.maxHubCount, tc.maxAuthCount,
 				1_000_000, 1_000_000,
