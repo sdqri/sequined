@@ -28,11 +28,12 @@ const (
 type PathGeneratorfunc func(parent *Webpage) string
 
 type Webpage struct {
-	ID     uint64
-	Path   string
-	Parent *Webpage
-	Links  []*Webpage
-	Type   WebpageType
+	ID         uint64
+	Path       string
+	PathPrefix string
+	Parent     *Webpage
+	Links      []*Webpage
+	Type       WebpageType
 
 	PathGenerator PathGeneratorfunc
 	AuthorityTmpl *template.Template
@@ -63,7 +64,7 @@ func NewWebpage(
 	}
 	defaultHubTmpl, err := template.New("default_hub.tmpl").
 		Funcs(fnMaps).
-		ParseFiles(path.Join(wd, "internal/templates/default_authority.tmpl"))
+		ParseFiles(path.Join(wd, "internal/templates/default_hub.tmpl"))
 	if err != nil {
 		panic(err)
 	}
@@ -115,7 +116,7 @@ func (wp *Webpage) GetPath() string {
 	if wp.PathGenerator != nil {
 		return wp.PathGenerator(wp)
 	}
-	return wp.Path
+	return fmt.Sprintf("%s/%s", wp.PathPrefix, wp.Path)
 }
 
 func (wp *Webpage) Render(writer io.Writer) error {
@@ -233,9 +234,9 @@ func (wp *Webpage) Draw(filename string, format graphviz.Format) error {
 
 func defaultPathGenerator(webpage *Webpage) string {
 	if webpage.Parent == nil {
-		return "/"
+		return webpage.PathPrefix + "/"
 	}
-	result, err := url.JoinPath(webpage.Parent.GetPath(), fmt.Sprintf("%d", webpage.ID))
+	result, err := url.JoinPath(webpage.Parent.GetPath(), fmt.Sprintf("%s", webpage.GetID()))
 	if err != nil {
 		panic(err)
 	}
@@ -278,5 +279,11 @@ func WithCustomTemplate(tmpl *template.Template) WebpageOption {
 func WithPathGenerator(f func(*Webpage) string) WebpageOption {
 	return func(w *Webpage) {
 		w.PathGenerator = f
+	}
+}
+
+func WithPathPrefix(prefix string) WebpageOption {
+	return func(w *Webpage) {
+		w.PathPrefix = strings.TrimSuffix(prefix, "/")
 	}
 }
