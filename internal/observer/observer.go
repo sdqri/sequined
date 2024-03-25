@@ -83,7 +83,6 @@ func (observer *Observer) GetAge(ip string, at time.Time) time.Duration {
 		}
 	}
 
-	// nodeCount := 0
 	cumulativeTime := time.Duration(0)
 	for nodeID, visitLog := range visitByNodeIDMap {
 		if nodeLog, ok := archiveNodesMap[nodeID]; ok {
@@ -95,5 +94,6 @@ func (observer *Observer) GetAge(ip string, at time.Time) time.Duration {
 		return 0
 	}
 
-	return cumulativeTime / time.Duration(len(visitByNodeIDMap))
+	age := time.Duration(float64(cumulativeTime) / float64(len(visitByNodeIDMap)))
+	return age
 }
