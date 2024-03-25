@@ -2,9 +2,14 @@ package graphgenerator
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	hr "github.com/sdqri/sequined/internal/hyperrenderer"
+)
+
+var (
+	ErrMaxHubOrAuthCountAlreadyExceeded error = errors.New("maxHubCount or maxAuthCount is already exceeded")
 )
 
 type SelectorFunc func(probabilities []float64) (int, error)
@@ -13,6 +18,7 @@ type GraphGenerator struct {
 	Root                   *hr.Webpage
 	PreferentialAttachment float64
 	SelectorFunc
+	mu sync.Mutex
 }
 
 func New(root *hr.Webpage, preferentialAttachment float64) *GraphGenerator {
@@ -40,6 +46,9 @@ var (
 )
 
 func (gg *GraphGenerator) CreateHubPage() (*hr.Webpage, error) {
+	gg.mu.Lock()
+	defer gg.mu.Unlock()
+
 	hubsMap := make(map[*hr.Webpage]bool)
 	totalHtoHLinksCount := 0
 
@@ -93,6 +102,9 @@ func (gg *GraphGenerator) CreateHubPage() (*hr.Webpage, error) {
 }
 
 func (gg *GraphGenerator) CreateAuthorityPage() (*hr.Webpage, error) {
+	gg.mu.Lock()
+	defer gg.mu.Unlock()
+
 	hubsMap := make(map[*hr.Webpage]bool)
 	totalHubsLinksCount := 0
 
@@ -119,11 +131,15 @@ func (gg *GraphGenerator) CreateAuthorityPage() (*hr.Webpage, error) {
 
 	probabilities := make([]float64, 0, totalHubsCount)
 	hubNodes := make([]*hr.Webpage, 0, totalHubsCount)
+
 	for node := range hubsMap {
 		linkCount := len(node.Links)
-		probability := (float64(linkCount)/float64(totalHubsLinksCount))*
-			float64(gg.PreferentialAttachment) +
-			(1-gg.PreferentialAttachment)*(1/float64(totalHubsCount))
+		probability := float64(1) / float64(totalHubsCount)
+		if totalHubsLinksCount != 0 {
+			probability = (float64(linkCount)/float64(totalHubsLinksCount))*
+				float64(gg.PreferentialAttachment) +
+				(1-gg.PreferentialAttachment)*(1/float64(totalHubsCount))
+		}
 		probabilities = append(probabilities, probability)
 		hubNodes = append(hubNodes, node)
 	}
@@ -138,8 +154,8 @@ func (gg *GraphGenerator) CreateAuthorityPage() (*hr.Webpage, error) {
 }
 
 func (gg *GraphGenerator) Generate(maxHubCount, maxAuthCount int) error {
-	hubsCount := 0
-	AuthsCount := 0
+	hubCount := 0
+	authCount := 0
 
 	var err error = nil
 	hr.Traverse(gg.Root, func(currentRenderer hr.HyperRenderer) bool {
@@ -149,9 +165,9 @@ func (gg *GraphGenerator) Generate(maxHubCount, maxAuthCount int) error {
 			return true
 		}
 		if currentPage.Type == hr.WebpageTypeHub {
-			hubsCount++
+			hubCount++
 		} else if currentPage.Type == hr.WebpageTypeAuthority {
-			AuthsCount++
+			authCount++
 		}
 
 		return false
@@ -161,14 +177,17 @@ func (gg *GraphGenerator) Generate(maxHubCount, maxAuthCount int) error {
 		return err
 	}
 
-	for hubsCount < maxHubCount {
-		gg.CreateHubPage()
-		hubsCount++
+	if hubCount > maxHubCount || authCount > maxAuthCount {
+		return ErrMaxHubOrAuthCountAlreadyExceeded
 	}
 
-	for AuthsCount < maxAuthCount {
+	for hubCount < maxHubCount {
+		gg.CreateHubPage()
+		hubCount++
+	}
+	for authCount < maxAuthCount {
 		gg.CreateAuthorityPage()
-		AuthsCount++
+		authCount++
 	}
 	return nil
 }
@@ -176,72 +195,131 @@ func (gg *GraphGenerator) Generate(maxHubCount, maxAuthCount int) error {
 func (gg *GraphGenerator) StartGraphEvolution(
 	maxHubCount, maxAuthCount int,
 	authCreationRate float64, hubCreationRate float64,
-) (chan UpdateMessage, chan error) {
-	// TODO: Determine optimal buffer size based on expected usage patterns
-	updateChan := make(chan UpdateMessage, maxHubCount+maxAuthCount)
-	errChan := make(chan error, maxHubCount+maxAuthCount)
-
+) (chan UpdateMessage, chan error, error) {
 	// Since the rate is specified in pages per hour,
 	authCreationInterval := time.Hour / time.Duration(authCreationRate)
 	hubCreationInterval := time.Hour / time.Duration(hubCreationRate)
 
 	// Count existing hub and authority pages
-	hubsCount := 0
-	authsCount := 0
+	hubCount := 0
+	authCount := 0
+	var err error
 	hr.Traverse(gg.Root, func(currentRenderer hr.HyperRenderer) bool {
 		currentPage, ok := currentRenderer.(*hr.Webpage)
 		if !ok {
-			errChan <- ErrUnexpectedNodeType
+			err = ErrUnexpectedNodeType
 			return false
 		}
 		if currentPage.Type == hr.WebpageTypeHub {
-			hubsCount++
+			hubCount++
 		} else if currentPage.Type == hr.WebpageTypeAuthority {
-			authsCount++
+			authCount++
 		}
 		return false
 	})
 
-	// TODO: What happens to other goroutine if one of them errors, sending to chan will panic!
-	// Create hub pages Asynchronously
-	go func() {
-		for hubsCount < maxHubCount {
-			webpage, err := gg.CreateHubPage()
-			if err != nil {
-				errChan <- err
-				break
-			}
-			hubsCount++
-			updateChan <- UpdateMessage{
-				Type:    UpdateTypeCreate,
-				Webpage: webpage,
-			}
-			time.Sleep(hubCreationInterval)
-		}
+	if err != nil {
+		return nil, nil, err
+	}
 
-		close(updateChan)
-		close(errChan)
+	if hubCount > maxHubCount || authCount > maxAuthCount {
+		return nil, nil, ErrMaxHubOrAuthCountAlreadyExceeded
+	}
+
+	actionsCount := (maxHubCount - hubCount) + (maxAuthCount - authCount)
+	updateChan := make(chan UpdateMessage, actionsCount)
+	errChan := make(chan error, actionsCount)
+	GeneratorErrorChan := make(chan struct{}, 0)
+	GeneratorDoneChan := make(chan struct{}, 0)
+
+	// Creates hub pages Asynchronously
+	retreatChan := make(chan struct{}, 0)
+	go func() {
+		ticker := time.NewTicker(hubCreationInterval)
+		defer ticker.Stop()
+	outerLoop:
+		for {
+			select {
+			case <-ticker.C:
+				if hubCount < maxHubCount {
+					webpage, err := gg.CreateHubPage()
+					if err != nil {
+						errChan <- err
+						GeneratorErrorChan <- struct{}{}
+						retreatChan <- struct{}{}
+						return
+					}
+					hubCount++
+					updateChan <- UpdateMessage{
+						Type:    UpdateTypeCreate,
+						Webpage: webpage,
+					}
+				} else {
+					break outerLoop
+				}
+			case <-retreatChan:
+				GeneratorErrorChan <- struct{}{}
+				return
+			}
+		}
+		GeneratorDoneChan <- struct{}{}
 	}()
 
-	// Create auth pages Asynchronously
 	go func() {
-		for authsCount < maxAuthCount {
-			webpage, err := gg.CreateAuthorityPage()
-			if err != nil {
-				errChan <- err
-				break
+		ticker := time.NewTicker(authCreationInterval)
+		defer ticker.Stop()
+	outerLoop:
+		for {
+			select {
+			case <-ticker.C:
+				if authCount < maxAuthCount {
+					webpage, err := gg.CreateAuthorityPage()
+					if err != nil {
+						errChan <- err
+						GeneratorErrorChan <- struct{}{}
+						retreatChan <- struct{}{}
+						return
+					}
+					authCount++
+					updateChan <- UpdateMessage{
+						Type:    UpdateTypeCreate,
+						Webpage: webpage,
+					}
+				} else {
+					break outerLoop
+				}
+			case <-retreatChan:
+				GeneratorErrorChan <- struct{}{}
+				return
 			}
-			authsCount++
-			updateChan <- UpdateMessage{
-				Type:    UpdateTypeCreate,
-				Webpage: webpage,
-			}
-			time.Sleep(authCreationInterval)
 		}
-
-		close(updateChan)
-		close(errChan)
+		GeneratorDoneChan <- struct{}{}
 	}()
 
-	return updateChan, errChan
+	go func() {
+		countDone := 0
+		countRetreated := 0
+	outerLoop:
+		for {
+			select {
+			case <-GeneratorErrorChan:
+				countRetreated++
+				if countRetreated == 2 {
+					break outerLoop
+				}
+			case <-GeneratorDoneChan:
+				countDone++
+				if countDone == 2 {
+					break outerLoop
+				}
+			}
+		}
+		close(updateChan)
+		close(errChan)
+		close(GeneratorDoneChan)
+		close(GeneratorErrorChan)
+		close(retreatChan)
+	}()
+
+	return updateChan, errChan, nil
 }
