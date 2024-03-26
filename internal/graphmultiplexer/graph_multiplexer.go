@@ -2,6 +2,7 @@ package graphmultiplexer
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -18,7 +19,8 @@ type GraphMux struct {
 	Observer *obs.Observer
 
 	*http.ServeMux
-	middlewareChain []Middleware
+	middlewareChain  []Middleware
+	GraphHandlerFunc http.HandlerFunc
 }
 
 type GraphMuxOption func(*GraphMux)
@@ -30,7 +32,8 @@ func New(root *hr.Webpage, opts ...GraphMuxOption) (*GraphMux, error) {
 		Root:     root,
 		RouteMap: routeMap,
 
-		ServeMux: http.NewServeMux(),
+		ServeMux:        http.NewServeMux(),
+		middlewareChain: make([]Middleware, 0),
 	}
 
 	for _, opt := range opts {
@@ -38,6 +41,8 @@ func New(root *hr.Webpage, opts ...GraphMuxOption) (*GraphMux, error) {
 	}
 
 	if mux.Observer != nil {
+		mux.middlewareChain = append(mux.middlewareChain, VisitLoggerMiddleware(&mux))
+
 		var err error
 		hr.Traverse(mux.Root, func(node hr.HyperRenderer) bool {
 			currentPage, ok := node.(*hr.Webpage)
@@ -53,15 +58,15 @@ func New(root *hr.Webpage, opts ...GraphMuxOption) (*GraphMux, error) {
 		}
 	}
 
-	GraphHandlerFunc := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.GraphHandlerFunc = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mux.HandleGraphHttpRequest(w, r)
 	})
 
 	for _, mw := range mux.middlewareChain {
-		GraphHandlerFunc = mw(GraphHandlerFunc)
+		mux.GraphHandlerFunc = mw(mux.GraphHandlerFunc)
 	}
 
-	mux.Handle("/", GraphHandlerFunc)
+	mux.Handle("/", mux.GraphHandlerFunc)
 
 	return &mux, nil
 }
@@ -72,8 +77,14 @@ func WithObserver(observer *obs.Observer) GraphMuxOption {
 	}
 }
 
+func WithMiddleware(mw Middleware) GraphMuxOption {
+	return func(mux *GraphMux) {
+		mux.middlewareChain = append(mux.middlewareChain, mw)
+	}
+}
+
 func (mux *GraphMux) Use(mw Middleware) {
-	mux.middlewareChain = append(mux.middlewareChain, mw)
+	mux.GraphHandlerFunc = mw(mux.GraphHandlerFunc)
 }
 
 func (mux *GraphMux) HandleGraphHttpRequest(w http.ResponseWriter, r *http.Request) {
@@ -127,17 +138,30 @@ func (mux *GraphMux) logNodeDeletion(webpage hr.HyperRenderer) {
 	}
 }
 
-// 		if mux.Observer != nil {
-// 			mux.Observer.LogVisit(obs.VisitLog{
-// 				RemoteAddr: obs.IPAddr(ip),
-// 				NodeID:     obs.NodeID(page.GetID()),
-// 				VisitedAt:  time.Now().UTC(),
-// 			})
-// 		}
-// 		ip, _, err := net.SplitHostPort(r.RemoteAddr)
-// 		if err != nil {
-// 			return
-// 		}
+func (mux *GraphMux) logVisit(req *http.Request) {
+	if mux.Observer == nil {
+		return
+	}
+
+	ip, _, _ := net.SplitHostPort(req.RemoteAddr)
+	nodeID := obs.NodeID(req.URL.Path)
+
+	mux.Observer.LogVisit(obs.VisitLog{
+		RemoteAddr: obs.IPAddr(ip),
+		NodeID:     nodeID,
+		VisitedAt:  time.Now().UTC(),
+	})
+}
+
+func VisitLoggerMiddleware(mux *GraphMux) Middleware {
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			next(w, r)
+
+			mux.logVisit(r)
+		}
+	}
+}
 
 //
 // func (mux *GraphMux) ActivateObserver() {
