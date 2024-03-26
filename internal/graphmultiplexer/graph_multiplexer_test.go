@@ -9,6 +9,7 @@ import (
 
 	gm "github.com/sdqri/sequined/internal/graphmultiplexer"
 	hr "github.com/sdqri/sequined/internal/hyperrenderer"
+	"github.com/sdqri/sequined/internal/observer"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -67,9 +68,49 @@ func TestHandleGraphHttpRequest(t *testing.T) {
 			assert.NoErrorf(t, err, "Error while creating root")
 			for _, rtc := range tc.requestTestCases {
 				r := httptest.NewRecorder()
-				mx.HandleGraphHttpRequest(r, rtc.req)
+				mx.GraphHandlerFunc(r, rtc.req)
 				assert.Equal(t, rtc.ExpectedStatusCode, r.Result().StatusCode)
 			}
 		})
 	}
+}
+
+func TestObserverOnMux(t *testing.T) {
+	testCases := []struct {
+		name string
+
+		rootGenerator              func() *hr.Webpage
+		reqs                       []*http.Request
+		ExpectedNodeLogLength      int
+		ExpectedVisitHistoryLength int
+	}{
+		{
+			name: "root & single visit",
+			rootGenerator: func() *hr.Webpage {
+				return hr.NewWebpage(hr.WebpageTypeHub)
+			},
+			reqs: []*http.Request{
+				httptest.NewRequest(http.MethodGet, "/", strings.NewReader("")),
+			},
+			ExpectedNodeLogLength:      1,
+			ExpectedVisitHistoryLength: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := tc.rootGenerator()
+			o := observer.New()
+			mx, err := gm.New(root, gm.WithObserver(o))
+			assert.NoErrorf(t, err, "Error while creating root")
+			for _, req := range tc.reqs {
+				r := httptest.NewRecorder()
+				mx.GraphHandlerFunc(r, req)
+			}
+
+			assert.Len(t, mx.Observer.NodeLogMap, tc.ExpectedNodeLogLength)
+			assert.Len(t, mx.Observer.VisitHistory, tc.ExpectedVisitHistoryLength)
+		})
+	}
+
 }
