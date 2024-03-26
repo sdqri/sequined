@@ -234,7 +234,10 @@ func (wp *Webpage) Draw(filename string, format graphviz.Format) error {
 
 func defaultPathGenerator(webpage *Webpage) string {
 	if webpage.Parent == nil {
-		return webpage.PathPrefix + "/"
+		if webpage.PathPrefix != "" {
+			return webpage.PathPrefix
+		}
+		return "/"
 	}
 	result, err := url.JoinPath(webpage.Parent.GetPath(), fmt.Sprintf("%s", webpage.GetID()))
 	if err != nil {
