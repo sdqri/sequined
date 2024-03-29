@@ -144,13 +144,15 @@ func (mux *GraphMux) logVisit(req *http.Request) {
 	}
 
 	ip, _, _ := net.SplitHostPort(req.RemoteAddr)
-	nodeID := obs.NodeID(req.URL.Path)
-
-	mux.Observer.LogVisit(obs.VisitLog{
-		RemoteAddr: obs.IPAddr(ip),
-		NodeID:     nodeID,
-		VisitedAt:  time.Now().UTC(),
-	})
+	if node, ok := mux.RouteMap[req.URL.Path]; ok {
+		if currentPage, ok := node.(*hr.Webpage); ok {
+			mux.Observer.LogVisit(obs.VisitLog{
+				RemoteAddr: obs.IPAddr(ip),
+				NodeID:     obs.NodeID(currentPage.GetID()),
+				VisitedAt:  time.Now().UTC(),
+			})
+		}
+	}
 }
 
 func VisitLoggerMiddleware(mux *GraphMux) Middleware {
@@ -160,6 +162,13 @@ func VisitLoggerMiddleware(mux *GraphMux) Middleware {
 
 			mux.logVisit(r)
 		}
+	}
+}
+
+func (mux *GraphMux) ActivateCharts() {
+	if mux.Observer != nil {
+		mux.HandleFunc("/charts", mux.Observer.HandleCharts)
+		mux.HandleFunc("/charts/freshness", mux.Observer.HandleFreshnessChart)
 	}
 }
 
