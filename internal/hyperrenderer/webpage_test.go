@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"os"
-	"path/filepath"
+	"path"
 	"testing"
 
 	"github.com/goccy/go-graphviz"
@@ -290,27 +290,19 @@ var update = flag.Bool("update", false, "update golden files")
 func TestDrawGolden(t *testing.T) {
 	webpage := hr.Webpage{ID: 1}
 
-	filename := "./test_output.dot"
+	wd, _ := os.Getwd()
 
-	err := webpage.Draw(filename, graphviz.XDOT)
+	var actual bytes.Buffer
+	err := webpage.Draw(graphviz.XDOT, &actual)
 	require.NoError(t, err, "Error generating DOT file")
 
-	actual, err := os.ReadFile(filename)
-	require.NoError(t, err, "Error reading golden DOT file")
-
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Error(err)
-	}
-	goldenPath := filepath.Join(wd, "internal/hyperrenderer/test-fixtures", "draw.golden")
+	goldenPath := path.Join(wd, "internal/hyperrenderer/test-fixtures", "draw.golden")
 	if *update {
-		os.WriteFile(goldenPath, actual, 0644)
+		os.WriteFile(goldenPath, actual.Bytes(), 0644)
 	}
 
 	expected, err := os.ReadFile(goldenPath)
 	require.NoError(t, err, "Error reading draw.golden file")
 
-	assert.Equal(t, string(expected), string(actual), "Generated output does not match golden output")
-	err = os.Remove(filename)
-	require.NoError(t, err, "Error deleting generated DOT file")
+	assert.Equal(t, string(expected), string(actual.Bytes()), "Generated output does not match golden output")
 }

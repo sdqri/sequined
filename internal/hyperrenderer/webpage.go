@@ -162,7 +162,7 @@ func (wp *Webpage) CountLinksByType(t WebpageType) int {
 	return i
 }
 
-func (wp *Webpage) Draw(filename string, format graphviz.Format) error {
+func (wp *Webpage) Draw(format graphviz.Format, w io.Writer) error {
 	g := graphviz.New()
 
 	graph, err := g.Graph()
@@ -220,12 +220,7 @@ func (wp *Webpage) Draw(filename string, format graphviz.Format) error {
 		}
 	}
 
-	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	defer file.Close()
-	if err != nil {
-		panic(err)
-	}
-	err = g.Render(graph, format, file)
+	err = g.Render(graph, format, w)
 	if err != nil {
 		return err
 	}
