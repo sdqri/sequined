@@ -112,7 +112,12 @@ func (wp *Webpage) GetPath() string {
 	if wp.PathGenerator != nil {
 		return wp.PathGenerator(wp)
 	}
-	return fmt.Sprintf("%s/%s", wp.PathPrefix, wp.Path)
+
+	if wp.PathPrefix != "" {
+		return fmt.Sprintf("%s/%s", wp.PathPrefix, wp.Path)
+	}
+
+	return wp.Path
 }
 
 func (wp *Webpage) Render(writer io.Writer) error {
