@@ -1,14 +1,12 @@
 package hyperrenderer
 
 import (
+	"embed"
 	"fmt"
 	"html/template"
 	"io"
 	"math/rand"
 	"net/url"
-	"os"
-	"path"
-	"path/filepath"
 	"strings"
 
 	"github.com/brianvoe/gofakeit/v7"
@@ -43,6 +41,9 @@ type Webpage struct {
 
 type WebpageOption func(*Webpage)
 
+//go:embed templates/*.tmpl
+var templateFS embed.FS
+
 func NewWebpage(
 	webpageType WebpageType,
 	opts ...WebpageOption,
@@ -51,20 +52,15 @@ func NewWebpage(
 
 	fnMaps := template.FuncMap{"Split": strings.Split}
 
-	wd, err := os.Getwd()
+	defaultAuthorityTmpl, err := template.New("default_authority.html.tmpl").
+		Funcs(fnMaps).
+		ParseFS(templateFS, "templates/default_authority.html.tmpl")
 	if err != nil {
 		panic(err)
 	}
-
-	defaultAuthorityTmpl, err := template.New("default_authority.tmpl").
+	defaultHubTmpl, err := template.New("default_hub.html.tmpl").
 		Funcs(fnMaps).
-		ParseFiles(filepath.Join(wd, "internal/templates/default_authority.tmpl"))
-	if err != nil {
-		panic(err)
-	}
-	defaultHubTmpl, err := template.New("default_hub.tmpl").
-		Funcs(fnMaps).
-		ParseFiles(path.Join(wd, "internal/templates/default_hub.tmpl"))
+		ParseFS(templateFS, "templates/default_hub.html.tmpl")
 	if err != nil {
 		panic(err)
 	}

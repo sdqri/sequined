@@ -2,7 +2,6 @@ package graphgenerator_test
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 	"time"
@@ -12,12 +11,6 @@ import (
 	hr "github.com/sdqri/sequined/internal/hyperrenderer"
 	"github.com/stretchr/testify/assert"
 )
-
-func init() {
-	if err := os.Chdir("../.."); err != nil {
-		panic(err)
-	}
-}
 
 type RootGenerator func() *hr.Webpage
 
