@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <script src="https://unpkg.com/htmx.org/dist/htmx.js"></script>
+  <script src="https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js"></script>
+  <style>
+    .sidebar {
+      background-color: white;
+      height: 100vh;
+      transition: width 0.3s ease;
+      overflow-x: hidden;
+    }
+    .sidebar-brand {
+      padding: 20px;
+      text-align: center;
+    }
+    .sidebar-brand img {
+      border-radius: 100px;
+      max-width: 80%;
+    }
+    .sidebar-item {
+      padding: 10px;
+      cursor: pointer;
+    }
+    .sidebar-item.active {
+      background-color: #e9ecef;
+    }
+ </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar -->
+      <div class="col-md-2 sidebar" id="sidebar">
+        <div class="sidebar-brand" id="brand">
+          <img src="https://github.com/sdqri/sequined/raw/master/docs/sequined-main.jpg" alt="Sequined Logo">
+          <h3 class="mt-2">Sequined Dashboard</h3>
+        </div>
+        <hr/>
+        <div class="sidebar-options">
+          <div class="sidebar-item active" onclick="showAnalytics()">
+            <i class="fas fa-chart-line mr-2"></i> <span class="menu-text">Analytics</span>
+          </div>
+          <div class="sidebar-item" onclick="showGraph()">
+            <i class="fas fa-chart-bar mr-2"></i> <span class="menu-text">Graph</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Content -->
+      <div class="col-md-10 content" style="margin-top: 5rem;" id="content">
+        <div id="analyticsContent" class="row justify-content-md-center">
+          <div id="freshnesscard" class="card col-md-10 mx-2">
+            <div class="card-body">
+              <h5 class="card-title">Freshness</h5>
+              <div id="freshnesscard" hx-get="/charts/freshness?bucket-duration=10m&duration=1h&ip=127.0.0.1" hx-trigger="load, every 10s" hx-swap="innerHTML" hx-target="#freshnesscard">
+              </div>
+            </div>
+          </div>
+          <div class="card col-md-10 mx-2">
+            <div class="card-body">
+              <h5 class="card-title">Age</h5>
+              <div id="agecard" hx-get="/charts/age?bucket-duration=10m&duration=1h&ip=127.0.0.1" hx-trigger="load, every 10s" hx-swap="innerHTML" hx-target="#agecard">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="graphContent" class="row justify-content-md-center" style="display: none;">
+          <div id="tree" class="card col-md-10 mx-2">
+            <div class="card-body">
+              <h5 class="card-title">Graph</h5>
+              <div id="treechart" hx-get="/charts/tree" hx-trigger="load, every 10s" hx-swap="innerHTML" hx-target="#treechart">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+  <script>
+    function showAnalytics() {
+      document.getElementById("analyticsContent").style.display = "flex";
+      document.getElementById("graphContent").style.display = "none";
+      document.querySelector(".sidebar-item.active").classList.remove("active");
+      document.querySelectorAll(".sidebar-item")[0].classList.add("active");
+    }
+  
+    function showGraph() {
+      document.getElementById("analyticsContent").style.display = "none";
+      document.getElementById("graphContent").style.display = "flex";
+      document.querySelector(".sidebar-item.active").classList.remove("active");
+      document.querySelectorAll(".sidebar-item")[1].classList.add("active");
+    }
+
+  </script>
+</body>
+</html>
+
