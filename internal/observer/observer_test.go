@@ -172,6 +172,26 @@ func TestFreshness(t *testing.T) {
 			expectedFreshness: 1,
 		},
 		{
+			name: "simple visit but after at",
+			nodeLogMap: observer.NodeLogMapType{
+				"node1": observer.NodeLog{
+					ID:        "node1",
+					CreatedAt: now,
+					DeletedAt: nil,
+				},
+			},
+			visitHistory: observer.VisitHistoryType{
+				observer.VisitLog{
+					RemoteAddr: "1.1.1.1",
+					NodeID:     "node1",
+					VisitedAt:  now.Add(10 * time.Minute),
+				},
+			},
+			ip:                "1.1.1.1",
+			at:                now.Add(5 * time.Minute),
+			expectedFreshness: 0,
+		},
+		{
 			name: "repeated visit",
 			nodeLogMap: observer.NodeLogMapType{
 				"node1": observer.NodeLog{
@@ -338,12 +358,12 @@ func TestAge(t *testing.T) {
 				observer.VisitLog{
 					RemoteAddr: "1.1.1.1",
 					NodeID:     "node1",
-					VisitedAt:  now.Add(20 * time.Minute),
+					VisitedAt:  now.Add(20 * time.Second),
 				},
 			},
 			ip:          "1.1.1.1",
 			at:          now.Add(1 * time.Hour),
-			expectedAge: time.Duration(20 * time.Minute),
+			expectedAge: time.Duration(20 * time.Second),
 		},
 		{
 			name: "repeated visit",
