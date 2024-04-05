@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	gm "github.com/sdqri/sequined/internal/graphmultiplexer"
-	hr "github.com/sdqri/sequined/internal/hyperrenderer"
+	gmx "github.com/sdqri/sequined/internal/graphmultiplexer"
+	hyr "github.com/sdqri/sequined/internal/hyperrenderer"
 	"github.com/sdqri/sequined/internal/observer"
 	"github.com/stretchr/testify/assert"
 )
@@ -28,13 +28,13 @@ type RequestTestCase struct {
 func TestHandleGraphHttpRequest(t *testing.T) {
 	testCases := []struct {
 		name             string
-		rootGenerator    func() *hr.Webpage
+		rootGenerator    func() *hyr.Webpage
 		requestTestCases []RequestTestCase
 	}{
 		{
 			name: "single node",
-			rootGenerator: func() *hr.Webpage {
-				return hr.NewWebpage(hr.WebpageTypeHub)
+			rootGenerator: func() *hyr.Webpage {
+				return hyr.NewWebpage(hyr.WebpageTypeHub)
 			},
 			requestTestCases: []RequestTestCase{
 				{
@@ -45,8 +45,8 @@ func TestHandleGraphHttpRequest(t *testing.T) {
 		},
 		{
 			name: "single node with prefix",
-			rootGenerator: func() *hr.Webpage {
-				return hr.NewWebpage(hr.WebpageTypeHub, hr.WithPathPrefix("/testprefix"))
+			rootGenerator: func() *hyr.Webpage {
+				return hyr.NewWebpage(hyr.WebpageTypeHub, hyr.WithPathPrefix("/testprefix"))
 			},
 			requestTestCases: []RequestTestCase{
 				{
@@ -64,7 +64,7 @@ func TestHandleGraphHttpRequest(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			root := tc.rootGenerator()
-			mx, err := gm.New(root)
+			mx, err := gmx.New(root)
 			assert.NoErrorf(t, err, "Error while creating root")
 			for _, rtc := range tc.requestTestCases {
 				r := httptest.NewRecorder()
@@ -79,15 +79,15 @@ func TestObserverOnMux(t *testing.T) {
 	testCases := []struct {
 		name string
 
-		rootGenerator              func() *hr.Webpage
+		rootGenerator              func() *hyr.Webpage
 		reqs                       []*http.Request
 		ExpectedNodeLogLength      int
 		ExpectedVisitHistoryLength int
 	}{
 		{
 			name: "root & single visit",
-			rootGenerator: func() *hr.Webpage {
-				return hr.NewWebpage(hr.WebpageTypeHub)
+			rootGenerator: func() *hyr.Webpage {
+				return hyr.NewWebpage(hyr.WebpageTypeHub)
 			},
 			reqs: []*http.Request{
 				httptest.NewRequest(http.MethodGet, "/", strings.NewReader("")),
@@ -101,7 +101,7 @@ func TestObserverOnMux(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			root := tc.rootGenerator()
 			o := observer.New()
-			mx, err := gm.New(root, gm.WithObserver(o))
+			mx, err := gmx.New(root, gmx.WithObserver(o))
 			assert.NoErrorf(t, err, "Error while creating root")
 			for _, req := range tc.reqs {
 				r := httptest.NewRecorder()

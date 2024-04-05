@@ -6,16 +6,17 @@ import (
 	"net/http"
 	"time"
 
-	gr "github.com/sdqri/sequined/internal/graphgenerator"
-	hr "github.com/sdqri/sequined/internal/hyperrenderer"
+	dsh "github.com/sdqri/sequined/internal/dashboard"
+	ggr "github.com/sdqri/sequined/internal/graphgenerator"
+	hyr "github.com/sdqri/sequined/internal/hyperrenderer"
 	obs "github.com/sdqri/sequined/internal/observer"
 )
 
 type Middleware func(http.HandlerFunc) http.HandlerFunc
 
 type GraphMux struct {
-	Root     *hr.Webpage
-	RouteMap map[string]hr.HyperRenderer
+	Root     *hyr.Webpage
+	RouteMap map[string]hyr.HyperRenderer
 	Observer *obs.Observer
 
 	*http.ServeMux
@@ -25,8 +26,8 @@ type GraphMux struct {
 
 type GraphMuxOption func(*GraphMux)
 
-func New(root *hr.Webpage, opts ...GraphMuxOption) (*GraphMux, error) {
-	routeMap := hr.CreatePathMap(root)
+func New(root *hyr.Webpage, opts ...GraphMuxOption) (*GraphMux, error) {
+	routeMap := hyr.CreatePathMap(root)
 
 	mux := GraphMux{
 		Root:     root,
@@ -44,10 +45,10 @@ func New(root *hr.Webpage, opts ...GraphMuxOption) (*GraphMux, error) {
 		mux.middlewareChain = append(mux.middlewareChain, VisitLoggerMiddleware(&mux))
 
 		var err error
-		hr.Traverse(mux.Root, func(node hr.HyperRenderer) bool {
-			currentPage, ok := node.(*hr.Webpage)
+		hyr.Traverse(mux.Root, func(node hyr.HyperRenderer) bool {
+			currentPage, ok := node.(*hyr.Webpage)
 			if !ok {
-				err = gr.ErrUnexpectedNodeType
+				err = ggr.ErrUnexpectedNodeType
 				return true
 			}
 			mux.logNodeCreation(currentPage)
@@ -99,18 +100,18 @@ func (mux *GraphMux) HandleGraphHttpRequest(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-func (mux *GraphMux) SyncGraph(updateChan chan gr.UpdateMessage, errChan chan error) {
+func (mux *GraphMux) SyncGraph(updateChan chan ggr.UpdateMessage, errChan chan error) {
 	for {
 		select {
 		case updateMsg, ok := <-updateChan:
 			if !ok {
 				//TODO: not do
 			}
-			mux.RouteMap = hr.CreatePathMap(mux.Root)
+			mux.RouteMap = hyr.CreatePathMap(mux.Root)
 			switch updateMsg.Type {
-			case gr.UpdateTypeCreate:
+			case ggr.UpdateTypeCreate:
 				mux.logNodeCreation(updateMsg.Webpage)
-			case gr.UpdateTypeDelete:
+			case ggr.UpdateTypeDelete:
 				mux.logNodeDeletion(updateMsg.Webpage)
 			}
 			// case err, ok <- errChan:
@@ -119,7 +120,7 @@ func (mux *GraphMux) SyncGraph(updateChan chan gr.UpdateMessage, errChan chan er
 	}
 }
 
-func (mux *GraphMux) logNodeCreation(webpage hr.HyperRenderer) {
+func (mux *GraphMux) logNodeCreation(webpage hyr.HyperRenderer) {
 	if mux.Observer != nil {
 		mux.Observer.LogNode(obs.NodeLog{
 			ID:        obs.NodeID(webpage.GetID()),
@@ -129,7 +130,7 @@ func (mux *GraphMux) logNodeCreation(webpage hr.HyperRenderer) {
 	}
 }
 
-func (mux *GraphMux) logNodeDeletion(webpage hr.HyperRenderer) {
+func (mux *GraphMux) logNodeDeletion(webpage hyr.HyperRenderer) {
 	if mux.Observer != nil {
 		now := time.Now().UTC()
 		if logNode, ok := mux.Observer.NodeLogMap[obs.NodeID(webpage.GetID())]; ok {
@@ -145,7 +146,7 @@ func (mux *GraphMux) logVisit(req *http.Request) {
 
 	ip, _, _ := net.SplitHostPort(req.RemoteAddr)
 	if node, ok := mux.RouteMap[req.URL.Path]; ok {
-		if currentPage, ok := node.(*hr.Webpage); ok {
+		if currentPage, ok := node.(*hyr.Webpage); ok {
 			mux.Observer.LogVisit(obs.VisitLog{
 				RemoteAddr: obs.IPAddr(ip),
 				NodeID:     obs.NodeID(currentPage.GetID()),
@@ -165,23 +166,6 @@ func VisitLoggerMiddleware(mux *GraphMux) Middleware {
 	}
 }
 
-func (mux *GraphMux) ActivateCharts() {
-	if mux.Observer != nil {
-		mux.HandleFunc("/charts", mux.Observer.HandleCharts)
-		mux.HandleFunc("/charts/freshness", mux.Observer.HandleFreshnessChart)
-	}
+func (mux *GraphMux) ActivateDashboard(dashboard *dsh.Dashboard) {
+	dashboard.HandleBy(mux.ServeMux)
 }
-
-//
-// func (mux *GraphMux) ActivateObserver() {
-// 	if mux.Observer == nil {
-// 		//TODO: should return error
-// 	}
-// 	mux.HandleFunc("/observer/age", func(w http.ResponseWriter, r *http.Request) {
-// 		query := r.URL.Query()
-// 		if ip := query.Get("ip"); ip != "" {
-// 			result := fmt.Sprintf("freshness = %v", mux.Observer.GetFreshness(ip, time.Now()))
-// 			fmt.Fprintf(w, result)
-// 		}
-// 	})
-// }
